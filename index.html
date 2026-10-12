@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MoodMap - Places Near You, Picked For Your Mood</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --card: #273449;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent2: #a78bfa;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+      header {
+        padding: 26px 40px 8px;
+        text-align: center;
+      }
+      h1 {
+        font-size: 34px;
+        letter-spacing: 0.5px;
+      }
+      h1 span {
+        background: linear-gradient(90deg, var(--accent), var(--accent2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .sub {
+        color: var(--muted);
+        margin-top: 6px;
+        font-size: 15px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 12px 40px 30px;
+      }
+      .loc {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--panel);
+        border-radius: 12px;
+        padding: 12px 18px;
+        margin: 14px 0;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .loc b {
+        color: var(--text);
+      }
+      .loc label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      input[type="range"] {
+        accent-color: var(--accent);
+        width: 150px;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 14px 0 10px;
+      }
+      .moods {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .chip {
+        background: var(--panel);
+        border: 2px solid transparent;
+        color: var(--text);
+        padding: 10px 18px;
+        border-radius: 999px;
+        font-size: 15px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      .chip:hover {
+        border-color: var(--accent2);
+      }
+      .chip.active {
+        background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
+        font-weight: 600;
+      }
+      .note {
+        margin: 18px 0 6px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .note b {
+        color: var(--accent);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 14px;
+        padding: 16px;
+        border-left: 4px solid var(--accent);
+      }
+      .card .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .emo {
+        font-size: 26px;
+      }
+      .dist {
+        background: #0b1220;
+        color: var(--accent);
+        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: 999px;
+      }
+      .card h3 {
+        margin: 8px 0 2px;
+        font-size: 16px;
+      }
+      .type {
+        font-size: 12px;
+        color: var(--accent2);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+      }
+      .why {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 8px;
+        line-height: 1.4;
+      }
+      .card a {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 13px;
+        color: var(--accent);
+        text-decoration: none;
+      }
+      footer {
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+        padding: 10px 0 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>📍 <span>MoodMap</span></h1>
+      <p class="sub">
+        Tell us how you feel. We'll find nearby places that match your mood.
+      </p>
+    </header>
+    <main>
+      <div class="loc">
+        <div id="locText">📡 Detecting your location…</div>
+        <label
+          >Search radius: <b id="rv">3 km</b>
+          <input id="radius" type="range" min="1" max="10" value="3"
+        /></label>
+      </div>
+
+      <h2>How are you feeling right now?</h2>
+      <div class="moods" id="moods"></div>
+
+      <p class="note" id="note"></p>
+      <div class="grid" id="results"></div>
+    </main>
+    <footer id="foot"></footer>
+
+    <script>
+      /* ---------- Mood -> place categories (OpenStreetMap tags) ---------- */
+      const CATS = {
+        park: {
+          emoji: "🌳",
+          label: "Park / Garden",
+          tag: '["leisure"="park"]',
+        },
+        temple: {
+          emoji: "🛕",
+          label: "Temple",
+          tag: '["amenity"="place_of_worship"]',
+        },
+        lake: {
+          emoji: "🏞️",
+          label: "Lake / Waterfront",
+          tag: '["natural"="water"]',
+        },
+        viewpoint: {
+          emoji: "⛰️",
+          label: "Viewpoint / Hill",
+          tag: '["tourism"="viewpoint"]',
+        },
+        cafe: { emoji: "☕", label: "Cafe", tag: '["amenity"="cafe"]' },
+        icecream: {
+          emoji: "🍦",
+          label: "Ice-cream",
+          tag: '["amenity"="ice_cream"]',
+        },
+        mall: { emoji: "🛍️", label: "Mall", tag: '["shop"="mall"]' },
+        restaurant: {
+          emoji: "🍜",
+          label: "Restaurant",
+          tag: '["amenity"="restaurant"]',
+        },
+        bakery: { emoji: "🥐", label: "Bakery", tag: '["shop"="bakery"]' },
+        museum: {
+          emoji: "🏛️",
+          label: "Museum / Heritage",
+          tag: '["tourism"="museum"]',
+        },
+        sports: {
+          emoji: "🏏",
+          label: "Sports / Fitness",
+          tag: '["leisure"~"sports_centre|fitness_centre|pitch"]',
+        },
+        books: {
+          emoji: "📚",
+          label: "Bookshop / Library",
+          tag: '["shop"="books"]',
+        },
+      };
+      const MOODS = {
+        Happy: {
+          emoji: "😄",
+          cats: ["cafe", "icecream", "mall", "park"],
+          line: "Keep the good vibes going",
+        },
+        Stressed: {
+          emoji: "😮‍💨",
+          cats: ["park", "temple", "lake", "viewpoint"],
+          line: "Quiet, open, calming spots to unwind",
+        },
+        Sad: {
+          emoji: "😔",
+          cats: ["cafe", "bakery", "park", "temple"],
+          line: "Comforting places to sit, breathe and feel better",
+        },
+        Energetic: {
+          emoji: "⚡",
+          cats: ["sports", "viewpoint", "mall", "park"],
+          line: "Burn that energy at these places",
+        },
+        Romantic: {
+          emoji: "💖",
+          cats: ["lake", "viewpoint", "restaurant", "cafe"],
+          line: "Beautiful spots for a special time",
+        },
+        Hungry: {
+          emoji: "🍕",
+          cats: ["restaurant", "bakery", "cafe", "icecream"],
+          line: "Good food nearby",
+        },
+        Curious: {
+          emoji: "🔍",
+          cats: ["museum", "books", "viewpoint"],
+          line: "Learn something new today",
+        },
+      };
+      const WHY = {
+        park: "Green and open, good for lowering stress.",
+        temple: "A peaceful corner to slow down.",
+        lake: "Water views have a calming effect.",
+        viewpoint: "Fresh air and a wide view to clear your head.",
+        cafe: "Cosy seating and a warm drink.",
+        icecream: "A sweet little treat.",
+        mall: "Lots to see, eat and do.",
+        restaurant: "A proper sit-down meal.",
+        bakery: "Fresh baked comfort food.",
+        museum: "Stories and history to explore.",
+        sports: "Get moving and let the energy out.",
+        books: "Browse, read and lose track of time.",
+      };
+
+      /* ---------- Demo data used when location / network is unavailable ---------- */
+      const DEMO = [
+        { name: "Pu. La. Deshpande Udyan", cat: "park", d: 0.9 },
+        { name: "Sarasbaug", cat: "park", d: 1.6 },
+        { name: "Parvati Hill", cat: "viewpoint", d: 2.1 },
+        { name: "Pashan Lake", cat: "lake", d: 2.4 },
+        { name: "Dagdusheth Ganpati Temple", cat: "temple", d: 1.3 },
+        { name: "Kayani Bakery", cat: "bakery", d: 2.8 },
+        { name: "Vaishali", cat: "restaurant", d: 1.8 },
+        { name: "Aga Khan Palace", cat: "museum", d: 2.9 },
+        { name: "Shaniwar Wada", cat: "museum", d: 2.0 },
+        { name: "Phoenix Marketcity", cat: "mall", d: 2.7 },
+      ];
+
+      let state = {
+        mood: "Stressed",
+        radiusKm: 3,
+        pos: null,
+        live: false,
+        places: [],
+      };
+
+      /* ---------- Helpers ---------- */
+      const km = (a, b, c, d) => {
+        const R = 6371,
+          t = (x) => (x * Math.PI) / 180,
+          h =
+            Math.sin(t(c - a) / 2) ** 2 +
+            Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      };
+
+      async function fetchLive() {
+        const { lat, lon } = state.pos,
+          r = state.radiusKm * 1000;
+        const cats = [...new Set(Object.values(MOODS).flatMap((m) => m.cats))];
+        const q =
+          "[out:json][timeout:20];(" +
+          cats
+            .map((c) => `nwr(around:${r},${lat},${lon})${CATS[c].tag}["name"];`)
+            .join("") +
+          ");out center 120;";
+        const res = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          body: "data=" + encodeURIComponent(q),
+        });
+        const js = await res.json();
+        return js.elements
+          .map((e) => {
+            const la = e.lat ?? e.center?.lat,
+              lo = e.lon ?? e.center?.lon;
+            const cat = cats.find((c) => matches(e.tags, c));
+            return {
+              name: e.tags.name,
+              cat,
+              d: km(lat, lon, la, lo),
+              lat: la,
+              lon: lo,
+            };
+          })
+          .filter((p) => p.cat);
+      }
+      function matches(t, c) {
+        const m = CATS[c].tag.match(/"(\w+)"(=|~)"([^"]+)"/);
+        if (!m) return false;
+        return m[2] === "="
+          ? t[m[1]] === m[3]
+          : new RegExp(m[3]).test(t[m[1]] || "");
+      }
+
+      /* ---------- UI ---------- */
+      function renderMoods() {
+        moods.innerHTML = Object.entries(MOODS)
+          .map(
+            ([k, v]) =>
+              `<button class="chip ${k === state.mood ? "active" : ""}" onclick="pick('${k}')">${v.emoji} ${k}</button>`,
+          )
+          .join("");
+      }
+      function pick(m) {
+        state.mood = m;
+        render();
+      }
+      function render() {
+        renderMoods();
+        const M = MOODS[state.mood];
+        note.innerHTML = `Feeling <b>${state.mood}</b>? ${M.line}.`;
+        const list = state.places
+          .filter((p) => M.cats.includes(p.cat) && p.d <= state.radiusKm)
+          .sort((a, b) => a.d - b.d)
+          .slice(0, 6);
+        results.innerHTML = list.length
+          ? list
+              .map((p) => {
+                const C = CATS[p.cat];
+                const link = p.lat
+                  ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}`
+                  : `https://www.google.com/maps/search/${encodeURIComponent(p.name)}`;
+                return `<div class="card"><div class="top"><span class="emo">${C.emoji}</span>
+      <span class="dist">${p.d.toFixed(1)} km away</span></div>
+      <h3>${p.name}</h3><div class="type">${C.label}</div>
+      <div class="why">${WHY[p.cat]}</div>
+      <a href="${link}" target="_blank" rel="noopener">Open in Maps →</a></div>`;
+              })
+              .join("")
+          : '<p class="note">No places found in this radius. Try increasing it.</p>';
+      }
+      async function load() {
+        try {
+          state.pos = await new Promise((ok, no) =>
+            navigator.geolocation.getCurrentPosition(
+              (p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude }),
+              no,
+              { timeout: 6000 },
+            ),
+          );
+          locText.innerHTML = "📍 Using your <b>current location</b>";
+          state.places = await fetchLive();
+          state.live = true;
+          foot.textContent =
+            "Live results from OpenStreetMap. Hosted on AWS Amplify.";
+        } catch (e) {
+          state.places = DEMO;
+          state.live = false;
+          locText.innerHTML =
+            "📍 Location unavailable, showing <b>sample places</b>";
+          foot.textContent =
+            "Sample data shown. Allow location access to see live places from OpenStreetMap. Hosted on AWS Amplify.";
+        }
+        render();
+      }
+      radius.oninput = () => {
+        state.radiusKm = +radius.value;
+        rv.textContent = radius.value + " km";
+        if (state.live) load();
+        else render();
+      };
+      render();
+      load();
+    </script>
+  </body>
+</html>
